@@ -37,6 +37,7 @@ pub struct LocateFileArgs {
     pub file: String,
 }
 
+// LOCATE-WORD
 pub fn execute_locate_word(args: &LocateWordArgs) {
     walk_dir_word(&args.directory, &args.word, &args.extensions)
 }
@@ -86,22 +87,7 @@ fn search_word(dir: &PathBuf, word: &str) {
     }
 }
 
-fn walk_dir_file(directory: &PathBuf, file: &str, count: &AtomicUsize) {
-    if let Ok(entries) = fs::read_dir(Path::new(directory)) {
-        entries.par_bridge().filter_map(Result::ok).for_each(|entry| {
-            let path = entry.path();
-            if let Ok(metadata) = path.metadata() {
-                if metadata.is_dir() {
-                    walk_dir_file(&entry.path(), file, count);
-                } else if path.file_name().unwrap_or_default() == file {
-                    println!("{} {}", "Found in path:", path.display().to_string().bold().underline());
-                    count.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-        })
-    }
-}
-
+// LOCATE-FILE
 pub fn execute_locate_file(args: &LocateFileArgs) {
     let start = Instant::now();
     let found_count = AtomicUsize::new(0);
@@ -117,4 +103,20 @@ pub fn execute_locate_file(args: &LocateFileArgs) {
 
     println!();
     println!("Execution time: {:?}", start.elapsed())
+}
+
+fn walk_dir_file(directory: &PathBuf, file: &str, count: &AtomicUsize) {
+    if let Ok(entries) = fs::read_dir(Path::new(directory)) {
+        entries.par_bridge().filter_map(Result::ok).for_each(|entry| {
+            let path = entry.path();
+            if let Ok(metadata) = path.metadata() {
+                if metadata.is_dir() {
+                    walk_dir_file(&entry.path(), file, count);
+                } else if path.file_name().unwrap_or_default() == file {
+                    println!("{} {}", "Found in path:", path.display().to_string().bold().underline());
+                    count.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        })
+    }
 }
