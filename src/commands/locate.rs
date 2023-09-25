@@ -23,6 +23,10 @@ pub struct LocateWordArgs {
     /// The file type where to check
     #[arg(short, long)]
     pub extensions: Option<String>,
+
+    /// Exclude files that you don't need to check in
+    #[arg(short, long)]
+    pub not_included: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -39,10 +43,10 @@ pub struct LocateFileArgs {
 
 // LOCATE-WORD
 pub fn execute_locate_word(args: &LocateWordArgs) {
-    walk_dir_word(&args.directory, &args.word, &args.extensions)
+    walk_dir_word(&args.directory, &args.word, &args.extensions, &args.not_included)
 }
 
-fn walk_dir_word(directory: &PathBuf, word: &str, file_types: &Option<String>) {
+fn walk_dir_word(directory: &PathBuf, word: &str, file_types: &Option<String>, not_included: &Option<String>) {
     if let Ok(entries) = fs::read_dir(directory) {
         entries
             .par_bridge()
@@ -52,16 +56,26 @@ fn walk_dir_word(directory: &PathBuf, word: &str, file_types: &Option<String>) {
 
                 if let Ok(metadata) = path.metadata() {
                     if metadata.is_dir() {
-                        walk_dir_word(&entry.path(), word, &file_types);
+                        walk_dir_word(&entry.path(), word, &file_types, &not_included);
                     } else {
-                        let file_name = entry.file_name();
+                        let file_name = entry.file_name().to_string_lossy().to_string();
+
+                        if let Some(ni) = not_included {
+                            if ni.split(",")
+                                .filter(|ni| !ni.is_empty() && !ni.split_whitespace().next().is_none())
+                                .any(|ni| file_name.contains(ni)) {
+                                walk_dir_word(&entry.path(), word, &file_types, &not_included);
+                                return;
+                            }
+                        }
+
                         if let Some(types) = file_types {
                             if types
                                 .split(",")
                                 .filter(|ext| {
                                     !ext.is_empty() && !ext.split_whitespace().next().is_none()
                                 })
-                                .any(|ext| file_name.to_string_lossy().ends_with(ext.trim()))
+                                .any(|ext| file_name.ends_with(ext.trim()))
                             {
                                 search_word(&path, word)
                             }
